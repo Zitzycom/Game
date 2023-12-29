@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  GameViewController.swift
 //  Rublex
 //
 //  Created by Macbook on 25.09.2023.
@@ -7,194 +7,231 @@
 
 import UIKit
 
-
-
-class GameViewController: UIViewController {
+final class GameViewController: UIViewController {
+    // MARK: -  Private properties
     
-    var model: StartMenuModel = .init(name: "", gameSpeed: .medium, myCar: .black, backFone: .forest, photo: "", date: .now)
-    let scorePoints = UILabel()
-    var score = 0
-    let layerBackground = UIImageView()
-    let layerBackgroundFirst = UIImageView()
-    let viewRoad = UIImageView()
-    let barrierCar = UIImageView()
-    weak var buttonPlay: UIButton?
-    weak var myCar : UIImageView?
-    weak var buttonLeft: UIButton?
-    weak var buttonRight: UIButton?
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        //MARK: create objects
-        //create barrierCar
-        barrierCar.frame = CGRect(x: getRandomCoordinate(), y: -Constants.indentBarrierCar, width: Constants.widthCar, height: Constants.heightCar)
-        barrierCar.image = UIImage(named: self.model.myCar.value)
-        self.viewRoad.addSubview(barrierCar)
-        //create scorePoints
-        scorePoints.frame = CGRect(x: self.view.bounds.width - Constants.indentForScorePoint, y: Constants.zero, width: Constants.scorePointsWidth, height: Constants.scorePointsHeight)
+    private lazy var scorePoints: UILabel = {
+        let scorePoints = UILabel(frame: CGRect(x: self.view.bounds.width - Constants.indentForScorePoint, y: .zero, width: Constants.scorePointsWidth, height: Constants.scorePointsHeight))
         scorePoints.backgroundColor = .white
-        scorePoints.text = String(0)
+        scorePoints.text = String(score)
         scorePoints.textAlignment = .center
         self.viewRoad.addSubview(scorePoints)
-        //create my car
-        let myCar = CarFactory.createCar(backgroundImage: ImageName.myCar, coordinate: [(self.view.bounds.width - 100) / 2 - 40, self.view.bounds.height - 120 ])
-        self.viewRoad.addSubview(myCar)
-        myCar.image = UIImage(named: ImageName.myCar)
-        self.myCar = myCar
-        //create viewRoad
-        viewRoad.frame = CGRect(x: 100, y: 0, width: view.bounds.width - 100, height: view.bounds.height )
+        return scorePoints
+    }()
+
+    private lazy var viewRoad: UIImageView = {
+        let viewRoad = UIImageView()
+        viewRoad.frame = CGRect(x: Constants.viewRoadIndent, y: .zero, width: self.view.bounds.width - Constants.viewRoadIndent, height: self.view.bounds.height )
         viewRoad.center = view.center
         let imageRoad = UIImage(named: ImageName.road)
         viewRoad.image = imageRoad
         self.view.addSubview(viewRoad)
-        //create buttonPlay
-        let buttonPlay = ButtonFactory.createButton(backgroundImage: ImageName.button, nameForButton: "", coordinate: [Constants.zero, Constants.zero, Constants.buttonSize, Constants.buttonSize])
-        buttonPlay.center = self.view.center
-        self.view.addSubview(buttonPlay)
-        self.buttonPlay = buttonPlay
-        //create buttonLeft
-        let buttonLeft = ButtonFactory.createButton(backgroundImage: ImageName.buttonLeft, nameForButton: "", coordinate: [(self.view.bounds.width) - 300, (self.view.bounds.height) - 250, (self.view.bounds.width) / 5, (self.view.bounds.height) / 5])
-        self.view.addSubview(buttonLeft)
-        self.buttonLeft = buttonLeft
+        return viewRoad
+    }()
+    
+    private lazy var myCar: UIImageView = {
+        var myCar = UIImageView()
+        myCar.frame = CGRect(x: view.bounds.width / .two - Constants.widthCar, y: view.bounds.height - Constants.heightCar, width: Constants.widthCar, height: Constants.heightCar)
+        myCar.image = UIImage(named: ImageName.myCar)
+        self.viewRoad.addSubview(myCar)
+        return myCar
+    }()
+    
+    private lazy var buttonPlay: UIButton = {
+        let buttonPlay = UIButton(frame: CGRect(x: .zero, y: .zero, width: Constants.buttonSize, height: Constants.buttonSize))
+        let image = UIImage(named: ImageName.button)
+        buttonPlay.setBackgroundImage(image, for: .normal)
+        buttonPlay.center = view.center
+        view.addSubview(buttonPlay)
+        return buttonPlay
+    }()
+    
+    private lazy var buttonLeft: UIButton = {
+        let buttonLeft = ButtonFactory.createButton(backgroundImage: ImageName.buttonLeft, nameForButton: "", frame: CGRect(x: view.bounds.width - Constants.indentXForButtonContror, y: view.bounds.height - Constants.indentYForButtonContror, width: view.bounds.width / Constants.screenRatioDivider, height: view.bounds.height / Constants.screenRatioDivider))
         buttonLeft.addTarget(self, action: #selector(driveInLeft), for: .touchUpInside)
-        //create buttonRight
-        let buttonRight = ButtonFactory.createButton(backgroundImage: ImageName.buttonRight, nameForButton: "", coordinate: [(self.view.bounds.width) - 150, (self.view.bounds.height) - 250, (self.view.bounds.width) / 5, (self.view.bounds.height) / 5])
-        self.view.addSubview(buttonRight)
-        self.buttonRight = buttonRight
+        return buttonLeft
+    }()
+    
+    private lazy var buttonRight: UIButton = {
+        let buttonRight = ButtonFactory.createButton(backgroundImage: ImageName.buttonRight, nameForButton: "", frame: CGRect(x: view.bounds.width - Constants.indentXForButtonContror / .two, y: view.bounds.height - Constants.indentYForButtonContror, width: view.bounds.width / Constants.screenRatioDivider, height: view.bounds.height / Constants.screenRatioDivider))
         buttonRight.addTarget(self, action: #selector(driveInRight), for: .touchUpInside)
-        //MARK: call funcs
+        return buttonRight
+    }()
+    
+    private var score = 0 {
+        didSet{
+            if score > maxScore {
+                self.maxScore = score
+            }
+        }
+    }
+    
+    private var maxScore = 0
+    private weak var timer: Timer?
+    private weak var barrierCar: UIImageView?
+    
+    // MARK: - Other properties
+    
+    var model: Player = .init(name: "", score: 0, gameSpeed: .medium, barrierCarColor: .black, backFone: .forest)
+    weak var gameViewDelegate: GameViewDelegate?
+    
+    // MARK: - Lifecycle
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        barrierCar = self.barrierCarAnimate()
+        self.view.addSubview(viewRoad)
+    }
+    
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        animateBackground(location: .zero, endLocation: view.bounds.height)
+        animateBackground(location: -view.bounds.height,endLocation: .zero)
         buttonPlay.addTarget(self, action: #selector(targetForButtonPlay), for: .allEvents)
-        movementBackground(object: layerBackground, coordinateX: -view.frame.origin.x, coordinateY: -view.frame.origin.y)
-        movementBackground(object: layerBackgroundFirst, coordinateX: Constants.zero, coordinateY: -self.view.bounds.height)
-        
     }
     
-    //MARK: create funcs
-    //create movemont background
-    @objc func movementBackground (object: UIImageView, coordinateX: CGFloat, coordinateY: CGFloat) {
-        object.frame = CGRect(x: coordinateX, y: coordinateY, width: view.bounds.width, height: view.bounds.height)
-        object.image = UIImage(named: self.model.backFone.value)
-        self.view.insertSubview(object, at: 0)
-        UIImageView.animate(withDuration: 10, delay: 0, options: [.curveLinear ]) {
-            object.frame.origin.y += self.view.bounds.height
-        } completion: { _ in
-            object.removeFromSuperview()
-            self.movementBackground(object: object, coordinateX: coordinateX, coordinateY: coordinateY)
-        }
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        self.getDelegate()
+ }
+    // MARK: - Private Methods
+    
+    private func animateBackground(location: CGFloat, endLocation: CGFloat) {
+        let backgroundImageView = UIImageView(image: UIImage(named: model.backFone.value))
+        backgroundImageView.frame = CGRect(x: .zero, y: location, width: view.bounds.width, height: view.bounds.height)
+        view.insertSubview(backgroundImageView, at: .zero)
+        UIView.animate(withDuration: Constants.speedBackgroung, delay: .zero, options: [.curveLinear, .repeat], animations: {
+            backgroundImageView.frame.origin.y = endLocation
+        }, completion: { _ in
+            backgroundImageView.frame.origin.y = location
+        })
     }
     
-    //create target for button play
-    @objc func targetForButtonPlay() {
-        buttonPlay?.removeFromSuperview()
-        movementBarrier(object: barrierCar, coordinateX: getRandomCoordinate(), coordinateY: -Constants.indentBarrierCar, animateSpeed: Double(self.model.gameSpeed.value))
+    @objc private func targetForButtonPlay() {
+        buttonPlay.removeFromSuperview()
+        self.view.addSubview(buttonLeft)
+        self.view.addSubview(buttonRight)
+        self.view.addSubview(scorePoints)
+        startAnimate()
     }
     
-    //create movement barrier
-    func movementBarrier (object: UIImageView, coordinateX: CGFloat, coordinateY: CGFloat, animateSpeed: Double) {
-        if object.frame.origin.y == 0 {
-            object.frame.origin.x = coordinateX
-            object.frame.origin.y = coordinateY
-        }
-        guard let myCar = myCar else {return}
-        self.scorePoints.text = self.resultScore(car: myCar, barrier: object, label: self.scorePoints)
-
-        let frameObjectY = object.frame.origin.y
-        let frameObjectX = object.frame.origin.x
-        object.frame = CGRect(x: frameObjectX, y: frameObjectY, width: 60, height: 90)
-        object.image = UIImage(named: self.model.myCar.value)
-        self.view.addSubview(object)
-        let getAnimateBarrier = { (object: UIImageView) in
-            guard let myCar = self.myCar else {return}
-            if myCar.intersectss(self.barrierCar) == false {
-                UIImageView.animate(withDuration: animateSpeed , delay: 0, options: [.curveLinear]) {
-                    object.frame.origin.y += 15
-                } completion: { _ in
-                    self.movementBarrier(object: object, coordinateX: frameObjectX, coordinateY: frameObjectY,animateSpeed: animateSpeed)
-                    if object.frame.origin.y > myCar.frame.origin.y + myCar.bounds.height + 200 {
-                        object.removeFromSuperview()
-                        object.frame.origin.y = 0
-                        self.movementBarrier(object: object, coordinateX: self.getRandomCoordinate(), coordinateY: 0, animateSpeed: animateSpeed)
-                    }
-                }
-            } else {
-                        object.stopAnimating()
-                let allertGameOver = UIAlertController(title: "game over", message: "You score \(self.score)", preferredStyle: .alert)
-                let alertBackForMenu = UIAlertAction(title: "back menu", style: .default) { _ in
-                    self.navigationController?.popViewController(animated: true)
-                }
-                let arertReplay = UIAlertAction(title: "new game", style: .cancel) { _ in
-                     object.removeFromSuperview()
-                        object.frame.origin.y = 0
-                        object.startAnimating()
-                        self.movementBarrier(object: object, coordinateX: self.getRandomCoordinate(), coordinateY: -20,animateSpeed: animateSpeed)
-                        self.myCar?.frame.origin.x = (self.view.bounds.width - 100) / 2 - 40
-
-                }
-                allertGameOver.addAction(alertBackForMenu)
-                allertGameOver.addAction(arertReplay)
-                self.present(allertGameOver, animated: true)
-            }
-        }
-        getAnimateBarrier(object)
-    }
-
-    //create drive my car in left
-    @objc func driveInLeft() {
-        UIImageView.animate(withDuration: 0.3) {
-            let coordinateXCar = self.myCar?.frame.origin.x
-            guard let xCarOrigin = coordinateXCar else {return}
-            if xCarOrigin > self.viewRoad.frame.origin.x - 50{
-                self.myCar?.frame.origin.x -= 7
+    @objc private func driveInLeft() {
+        UIImageView.animate(withDuration: Constants.myCarSpeedAnimate) {
+            if self.myCar.frame.origin.x > self.viewRoad.frame.origin.x - Constants.viewRoadIndent / .two {
+                self.myCar.frame.origin.x -= Constants.carStepSideways
             }else {
-                self.myCar?.stopAnimating()
+                self.myCar.stopAnimating()
             }
         }
     }
-
-    //create drive my car in right
-    @objc func driveInRight() {
-        UIImageView.animate(withDuration: 0.3) {
-            let coordinateXCar = self.myCar?.frame.origin.x
-            guard let xCarOrigin = coordinateXCar else {return}
-            if xCarOrigin < self.viewRoad.bounds.width - 75{
-                self.myCar?.frame.origin.x += 7
+    
+    @objc private func driveInRight() {
+        UIImageView.animate(withDuration: Constants.myCarSpeedAnimate) {
+            if self.myCar.frame.origin.x < self.viewRoad.bounds.width - Constants.widthCar{
+                self.myCar.frame.origin.x += Constants.carStepSideways
             }else {
-                self.myCar?.stopAnimating()
+                self.myCar.stopAnimating()
             }
         }
     }
-    // get random coordinate to coordinate x for barrier car
-    func getRandomCoordinate() -> CGFloat {
-        let coordinateArray = (50...265)
-        guard let randomElement = coordinateArray.randomElement() else {return 0}
-        let result = randomElement
-        return CGFloat(result)
+    
+    private func barrierCarAnimate() -> UIImageView? {
+        let barrierCar = UIImageView(frame: CGRect(x: .random(in: (Constants.viewRoadIndent / .four)...(view.bounds.width - Constants.viewRoadIndent - Constants.widthCar)), y: -Constants.heightCar, width: Constants.widthCar, height: Constants.heightCar))
+              barrierCar.image = UIImage(named: model.barrierCarColor.value)
+              viewRoad.addSubview(barrierCar)
+        self.barrierCar = barrierCar
+        return barrierCar
+          }
+    
+    private func startAnimate() {
+        timer = Timer.scheduledTimer(withTimeInterval: model.gameSpeed.value, repeats: true, block: { [weak self] _ in
+            guard let self else {return}
+            self.animateCar()
+        })
+        guard let barrierCar = barrierCar else {return}
+        barrierCar.frame.origin.x = .random(in: (Constants.viewRoadIndent / .two)...(view.bounds.width - Constants.viewRoadIndent - Constants.widthCar))
+    }
+    
+  
+    private func animateCar() {
+        guard let barrierCar = barrierCar else {return}
+        if presentedViewController != nil {
+              return
+          }
+        switch myCar.intersects(barrierCar) {
+            case false:
+                timer?.invalidate()
+            UIImageView.animate(withDuration: 0.3 , delay: .zero ,options: .curveLinear) { [weak self] in
+                guard let self else {return}
+                barrierCar.frame.origin.y += Constants.myCarStep
+                    self.resultScore()
+                }
+            case true:
+                present(giveAlertGameOver(), animated: true)
+            
+            }
+        if barrierCar.frame.origin.y > Constants.restartBoundary {
+                stopAnimate()
+                startAnimate()
+            }
+    }
+    
+    private func stopAnimate() {
+        guard let barrierCar = barrierCar else {return}
+        barrierCar.frame.origin.y = -Constants.heightCar
+        self.timer?.invalidate()
+        self.timer = nil
+    }
+    
+    private func giveAlertGameOver() -> UIAlertController{
+        let alert = UIAlertController(title: Constants.gameOver, message: "\(Constants.youLose) \(score)", preferredStyle: .alert)
+        let alertButtonBackMenu = UIAlertAction(title: Constants.backMenu, style: .default) { [weak self] _ in
+            guard let self else {return}
+            self.getDelegate()
+            self.stopAnimate()
+            
+            self.navigationController?.popViewController(animated: false)
+        }
+        let alertButtonReplay = UIAlertAction(title: Constants.newGame, style: .cancel) { [weak self] _ in
+            guard let self else {return}
+            self.stopAnimate()
+            self.score = .zero
+            self.startAnimate()
+            self.myCar.frame.origin.x = self.view.bounds.width / .two - Constants.widthCar
+        }
+        alert.addAction(alertButtonReplay)
+        alert.addAction(alertButtonBackMenu)
+        return alert
+    }
+    
+    private  func resultScore()  {
+        guard let barrierCar = barrierCar else {return}
+        if barrierCar.frame.origin.y == Constants.coordinateForNextScorePoint {
+            score += .one
+            model.score = maxScore
+        }
+        scorePoints.text = String(score)
+    }
+    
+    private func getDelegate() {
+        gameViewDelegate?.dateDelegate(value: Date.now)
+        gameViewDelegate?.scorePointDelegate(value: maxScore)
+    }
+    
+    private func setConstrint() {
+        NSLayoutConstraint.activate([buttonRight.leftAnchor.constraint(equalTo: view.leftAnchor, constant: 50), buttonRight.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: 100)])
     }
 }
-//MARK: extensions
+// MARK: - Extension
 extension UIImageView {
-    func intersectss(_ her: UIImageView) -> Bool {
+    func intersects(_ her: UIImageView) -> Bool {
         let herInMyGeometry = convert(her.bounds, from: her)
         return bounds.intersects(herInMyGeometry)
     }
 }
-
-
-
-extension GameViewController {
-    struct GameViewModel {
-        var model: StartMenuModel = .init(name: "", gameSpeed: .medium, myCar: .black, backFone: .forest, photo: "", date: .now)
-    }
-    
-    func resultScore(car: UIImageView, barrier: UIImageView, label: UILabel ) -> String? {
-        var labelText = "\(score)"
-        if barrier.frame.origin.y >= Constants.coordinateForNextScorePoint {
-            score += 1
-            print (barrier.frame.origin.y)
-            labelText = "\(score)"
-            print(labelText)
-        }
-        return labelText
-    }
+// MARK: - Delegate
+protocol GameViewDelegate: AnyObject {
+    func scorePointDelegate(value: Int)
+    func dateDelegate(value: Date)
 }
 

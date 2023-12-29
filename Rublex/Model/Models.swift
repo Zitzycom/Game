@@ -1,12 +1,26 @@
 //
-//  Model.swift
+//  Models.swift
 //  Rublex
 //
-//  Created by Macbook on 04.10.2023.
+//  Created by Macbook on 30.11.2023.
 //
 
-import Foundation
+import UIKit
 
+// MARK: - Struct Player
+struct Player: Codable {
+    var name: String? = ""
+    var score: Int = 0
+    var gameSpeed: GameSpeed = .medium
+    var barrierCarColor: BarrierCarColor = .black
+    var backFone: FoneType = .forest
+    var photo: UIImage?
+    var date: Date?
+
+    enum CodingKeys: String, CodingKey {
+          case  name, score, gameSpeed, barrierCarColor, backFone,  date
+      }
+}
 
 enum ImageName {
     static var barrier: String {"Barrier"}
@@ -20,7 +34,7 @@ enum ImageName {
     static var buttonRight: String {"ButtonRight"}
     static var myCar: String {"MyCar"}
     static var buttonForMenu: String {"ButtonMenu"}
-    static var defaultAvatar : String? {"DefaultAvatar"}
+    static var defaultAvatar : String {"DefaultAvatar"}
 }
 
 enum GameSpeed: Codable {
@@ -29,45 +43,34 @@ enum GameSpeed: Codable {
     case higth
     var value: Double {
         switch self {
-        case .low: return 2.0
-        case .medium: return 1.0
-        case .higth: return 0.01
+        case .low: return 0.03
+        case .medium: return 0.015
+        case .higth: return 0.008
         }
     }
 }
 
-enum MyCarColor: Codable {
+enum BarrierCarColor: Codable {
     case red
     case black
     var value: String {
         switch self {
-        case .black: return "black"
         case .red: return "red"
+        case .black: return "black"
         }
     }
 }
 
 enum FoneType: Codable {
-    case bushes
     case forest
     case field
+    case bushes
     var value: String {
         switch self {
-        case .bushes: return "Bushes"
-        case .field: return "Field"
-        case .forest: return "Forest"
+        case .forest: return "forest"
+        case .field: return "field"
+        case .bushes: return "bushes"
+
         }
     }
-}
-
-enum Constants {
-    static var widthCar: CGFloat {80}
-    static var heightCar: CGFloat {120}
-    static var scorePointsWidth: CGFloat {50}
-    static var scorePointsHeight: CGFloat {50}
-    static var zero: CGFloat {0}
-    static var indentForScorePoint: CGFloat {100}
-    static var buttonSize: CGFloat {150}
-    static var indentBarrierCar: CGFloat {100}
-    static var coordinateForNextScorePoint: CGFloat {860}
 }

@@ -7,91 +7,103 @@
 
 import UIKit
 
-class StartMenuViewController: UIViewController {
-    weak var buttonStart: UIButton?
-    weak var buttonRecords: UIButton?
-    weak var buttonOptions: UIButton?
-    var model = StartMenuModel(name: "", gameSpeed: .medium, myCar: .black, backFone: .bushes, photo: "", date: .now)
-    let manager = StorageManager()
+final class StartMenuViewController: UIViewController {
+    
+    // MARK: -  Properties
 
-    var dictionary: [String: User] = [:]
+    private weak var buttonStart: UIButton?
+    private weak var buttonRecords: UIButton?
+    private weak var buttonOptions: UIButton?
+    var model = Player()
+    private let gameManager = GameManager()
+
+    // MARK: - Lifecycle
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        guard let load = manager.loadCurentUser() else { return }
-        model = load
-        
-        let buttonStart = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: "Start", coordinate: [0, 0, 300, 150])
-        buttonStart.center = CGPoint(x: self.view.bounds.width / 2, y: self.view.bounds.height / 4) 
+        model = gameManager.load(key: model.name ?? "") ?? model
+        cteateButton()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        gameManager.save(player: model, key: model.name ?? "")
+    }
+    
+    // MARK: - Private Methods
+
+    private func cteateButton() {
+        let buttonStart = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: LocalConstants.start, frame: CGRect(x: .zero, y: .zero, width: LocalConstants.buttonWidth, height: LocalConstants.buttonHeight))
+        buttonStart.center = CGPoint(x: self.view.bounds.width / .two, y: self.view.bounds.height / .four)
         buttonStart.setTitleColor(.black, for: .normal)
         self.view.addSubview(buttonStart)
+        buttonStart.addTarget(self, action: #selector(getToGameView), for: .touchDown)
         self.buttonStart = buttonStart
         
-        let buttonRecords = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: "Records", coordinate: [0, 0, 300, 150])
+        let buttonRecords = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: LocalConstants.records,frame: CGRect(x: .zero, y: .zero, width: LocalConstants.buttonWidth, height: LocalConstants.buttonHeight))
         buttonRecords.setTitleColor(.black, for: .normal)
         buttonRecords.center = self.view.center
         self.view.addSubview(buttonRecords)
+        buttonRecords.addTarget(self, action: #selector(getToRecordsView), for: .touchDown)
         self.buttonRecords = buttonRecords
         
-        let buttonOptions = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: "Options", coordinate: [0, 0, 300, 150])
+        let buttonOptions = ButtonFactory.createButton(backgroundImage: ImageName.buttonForMenu, nameForButton: LocalConstants.options, frame: CGRect(x: .zero, y: .zero, width: LocalConstants.buttonWidth, height: LocalConstants.buttonHeight))
         buttonOptions.setTitleColor(.black, for: .normal)
-        buttonOptions.center = CGPoint(x: self.view.bounds.width / 2, y: self.view.bounds.height * 0.75)
+        buttonOptions.center = CGPoint(x: self.view.bounds.width / .two, y: self.view.bounds.height * .pointSevenFive)
         self.view.addSubview(buttonOptions)
+        buttonOptions.addTarget(self, action: #selector(getToSettingsView), for: .touchDown)
         self.buttonOptions = buttonOptions
-        
-        self.buttonStart?.addTarget(self, action: #selector(getToGameView), for: .touchDown)
-        self.buttonOptions?.addTarget(self, action: #selector(getToSettingsView), for: .touchDown)
-        self.buttonRecords?.addTarget(self, action: #selector(getToRecordsView), for: .touchDown)
-
     }
     
-    
-    
-    @objc func getToSettingsView() {
-        let settingView = SettingsView()
-        settingView.delegate = self
+    @objc private func getToSettingsView() {
+        let settingView = SettingsViewController()
+        settingView.settingsViewDelegate = self
+        settingView.model = self.model
         navigationController?.pushViewController(settingView, animated: false)
     }
-    @objc func getToGameView() {
-        print(model)
+    
+    @objc private func getToGameView() {
         let gameView = GameViewController()
-        gameView.model = .init(name: model.name, gameSpeed: model.gameSpeed, myCar: model.myCar, backFone: model.backFone, photo: model.photo, date: Date.now)
-        navigationController?.pushViewController(gameView, animated: true)
+        gameView.gameViewDelegate = self
+        gameView.model = .init(name: model.name ,score: model.score, gameSpeed: model.gameSpeed, barrierCarColor: model.barrierCarColor, backFone: model.backFone, photo: model.photo, date: nil)
+        navigationController?.pushViewController(gameView, animated: false)
     }
-    @objc func getToRecordsView() {
+    
+    @objc private func getToRecordsView() {
         let recordsView = RecordsViewController()
-        let cell = RecordsTableViewCell()
-        cell.label.text = model.backFone.value
         navigationController?.pushViewController(recordsView, animated: false)
     }
-    override func viewDidAppear(_ animated: Bool) {
-        manager.saveCurentUSer(user: model)
-    }
 }
 
+//MARK: - Delegate
 
-
-struct StartMenuModel: Codable {
-    var id = UUID().uuidString
-    var name: String
-    var gameSpeed: GameSpeed
-    var myCar: MyCarColor
-    var backFone: FoneType
-    var photo: String
-    var date: Date
-}
-//MARK: Delegate
 extension StartMenuViewController: SettingsViewDelegate {
-    func choiceMyCarDelegate(value: MyCarColor) {
-        self.model.myCar = value
+    func settingsViewModel(model: Player) {
+        self.model = model
     }
-    func anitameSpeedDelegate(value: GameSpeed) {
-        self.model.gameSpeed = value
+}
+
+extension StartMenuViewController: GameViewDelegate {
+    func scorePointDelegate(value: Int) {
+        self.model.score = value
     }
-    func choiceFoneTypeDelegate(value: FoneType) {
-        self.model.backFone = value
+    func dateDelegate(value: Date) {
+        self.model.date = value
     }
-    func playerName(value: String) {
-        self.model.name = value
+}
+
+//MARK: - Local constants
+extension StartMenuViewController {
+    private enum LocalConstants {
+        static var buttonWidth: CGFloat {300}
+        static var buttonHeight: CGFloat {150}
+        static var start: String {"Start"}
+        static var records: String {"Records"}
+        static var options: String {"Options"}
     }
 }
